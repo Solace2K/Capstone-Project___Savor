@@ -15,15 +15,15 @@ const { default: mongoose } = require("mongoose");
 
 mongoose.connect(config.connectionString);
 
-const User =require("./model/user.model");
-const Recipe = require("./recipe.model");
+const User = require("./models/user.model");
+const Recipe = require("./models/recipe.model")
 
 app.use(express.json());
 
 app.use(
     cors({
-        origin "*",
-    });
+        origins: "*"
+    })
 );
 
 app.get("/", (req, res) => {
@@ -31,7 +31,7 @@ app.get("/", (req, res) => {
 });
 
 // Create Account
-app.post("/creat-account", async (req, res) => {
+app.post("/create-account", async (req, res) => {
 
     const { fullName, email,password } = req.body;
 
@@ -62,7 +62,7 @@ app.post("/creat-account", async (req, res) => {
         });
     }
 
-    const user = new User({
+    const user = newUser({
         fullName,
         email,
         password,
@@ -125,36 +125,36 @@ app.post("/login", async (req, res) => {
 
 //Add Recipe
 app.post("/add-recipe", authenticateToken, async (req, res) => {
-    const { dish, ingredients, servings, cookTime, directions, tags } = req.body;
+    const { title, ingredients, servings, cookTime, directions, tags } = req.body;
     const { user } = req.body;
 
-    if (!dish) {
-        return res.status(400).json({ error: true, message "Dish is required" });
+    if (!title) {
+        return res.status(400).json({ error: true, message: "Dish is required" });
     }
 
     if (!ingredients) {
-        return res.status(400).json({ error: true, message "ingredients are required" })
+        return res.status(400).json({ error: true, message: "ingredients are required" })
     }
 
     if (!servings) {
-        return res.status(400).json({ error: true, message "Servings is required" });
+        return res.status(400).json({ error: true, message: "Servings is required" });
     }
 
     if (!cookTime) {
-        return res.status(400).json({ error: true, message "Cook Time is required" });
+        return res.status(400).json({ error: true, message: "Cook Time is required" });
     }
 
     if (!directions) {
-        return res.status(400).json({ error: true, message "Directions are required" });
+        return res.status(400).json({ error: true, message: "Directions are required" });
     }
 
     if (!tags) {
-        return res.status(400).json({ error: true, message "Tags are required" });
+        return res.status(400).json({ error: true, message: "Tags are required" });
     }
 
     try {
-        const recipe = new Recipe({
-            dish,
+        const recipe = newRecipe({
+            title,
             ingredients,
             servings,
             cookTime,
@@ -181,22 +181,22 @@ app.post("/add-recipe", authenticateToken, async (req, res) => {
 //Edit Recipe
 app.put("/edit-recipe/recipeId", authenticateToken, async (req, res) => {
     const recipeId = req.params.recipeId;
-    const { dish, servings, cuisineType, tags, isPinned } req.body;
+    const { title, servings, cuisineType, tags, isPinned } = req.body;
     const { user } = req.user;
 
-    if (!tdish && !servings && !cuisineType && !tags) {
+    if (!title && !servings && !cuisineType && !tags) {
         return res.status(400)
         .json({ error: true, message: "No changes provided"});
     }
 
     try {
-        const note = await Recipe.findOne({ _id: recipeId, userId: user._id });
+        const recipe = await recipe.findOne({ _id: recipeId, userId: user._id });
 
-        if (!note) {
+        if (!recipe) {
             return res.status(404).json({ error: true, message: "Recipe not found" });
         }
 
-        if (dish) recipe.dish =recipe;
+        if (title) recipe.title = recipe;
         if (servings) recipe.servings = servings;
         if (cuisineType) recipe.cuisineType = cuisineType;
         if (tags) recipe.tags = tags;
@@ -222,7 +222,7 @@ app.get("/get-all-recipes/", authenticateToken, async (req, res) => {
     const { user } = req.user;
 
     try {
-        const recipes = await Recipe.find({ user._id         
+        const recipes = await Recipe.find({ user: user._id         
         }).sort({ isPinned: -1     
         });
 
