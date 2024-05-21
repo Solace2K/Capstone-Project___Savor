@@ -27,8 +27,6 @@ app.get("/", (req, res) => {
     res.json({ data: "hello" });
 });
 
-// Backend Ready!
-
 // Create Account
 app.post("/create-account", async (req, res) => {
 
@@ -61,7 +59,7 @@ app.post("/create-account", async (req, res) => {
         });
     }
 
-    const user = newUser({
+    const user = new User({
         fullName,
         email,
         password,
@@ -70,7 +68,7 @@ app.post("/create-account", async (req, res) => {
     await user.save();
 
     const accessToken = jwt.sign({ user }, process.env.ACCESS_TOKEN_SECRET, {
-      expireIn: "36000m", 
+      expiresIn: "36000m", 
     });
 
     return res.json({
@@ -81,7 +79,7 @@ app.post("/create-account", async (req, res) => {
     });
 });
 
-//Login
+// Login
 app.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
@@ -104,7 +102,7 @@ app.post("/login", async (req, res) => {
     if (userInfo.email == email && userInfo.password == password) {
         const user = { user: userInfo };
         const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-            expireIn: "36000m"
+            expiresIn: "36000m"
         });
 
         return res.json({
@@ -133,20 +131,15 @@ app.get("/get-user", authenticateToken, async (req, res) => {
     }
 
     return res.json ({
-        user: {
-            fullName: isUser.fullName, 
-            email: isUser.email, 
-            _id: isUser._id,
-            createdOn: isUser.createdOn
-        },
-        message: ""
+        user: isUser,
+        message: "",
     });
 });
 
-//Add Recipes
+// Add Recipes
 app.post("/add-recipe", authenticateToken, async (req, res) => {
-    const { title, ingredients, servings, cookTime, directions, tags } = req.body;
-    const { user } = req.body;
+    const { title, servings, cuisineType, cookTime, description, ingredients, directions, tags } = req.body;
+    const { user } = req.user;
 
     if (!title) {
         return res.status(400).json({ error: true, message: "Title is required" });
@@ -156,37 +149,29 @@ app.post("/add-recipe", authenticateToken, async (req, res) => {
         return res.status(400).json({ error: true, message: "Ingredients are required" })
     }
 
-    if (!servings) {
-        return res.status(400).json({ error: true, message: "Servings is required" });
-    }
-
-    if (!cookTime) {
-        return res.status(400).json({ error: true, message: "Cook Time is required" });
-    }
-
     if (!directions) {
         return res.status(400).json({ error: true, message: "Directions are required" });
     }
 
-    if (!tags) {
-        return res.status(400).json({ error: true, message: "Tags are required" });
-    }
-
     try {
-        const recipe = newRecipe({
+        const recipe = new Recipe({
             title,
-            ingredients,
             servings,
+            cuisineType,
             cookTime,
-            tags: tag || [],
-            userId: user.id,
+            description,
+            ingredients,
+            directions,
+            tags: tags || [],
+            userId: user._id,
         });
 
         await recipe.save();
+
         return res.json({
             error: false,
             recipe,
-            message: "recipe added successfully",
+            message: "Recipe added successfully",
         });
 
     } catch (error) {
@@ -198,27 +183,31 @@ app.post("/add-recipe", authenticateToken, async (req, res) => {
 
 });
 
-//Edit Recipes
-app.put("/edit-recipe/recipeId", authenticateToken, async (req, res) => {
+// Edit Recipes
+app.put("/edit-recipe/:recipeId", authenticateToken, async (req, res) => {
     const recipeId = req.params.recipeId;
-    const { title, servings, cuisineType, tags, isPinned } = req.body;
+    const { title, servings, cuisineType, cookTime, description, ingredients, directions, tags, isPinned } = req.body;
     const { user } = req.user;
 
-    if (!tdish && !servings && !cuisineType && !tags) {
+    if (!title && !servings && !cuisineType && !cookTime && !description && !ingredients && !directions && !tags) {
         return res.status(400)
         .json({ error: true, message: "No changes provided"});
     }
 
     try {
-        const note = await Recipe.findOne({ _id: recipeId, userId: user._id });
+        const recipe = await Recipe.findOne({ _id: recipeId, userId: user._id });
 
-        if (!note) {
+        if (!recipe) {
             return res.status(404).json({ error: true, message: "Recipe not found" });
         }
 
-        if (title) recipe.title =recipe;
+        if (title) recipe.title = title;
         if (servings) recipe.servings = servings;
         if (cuisineType) recipe.cuisineType = cuisineType;
+        if (cookTime) recipe.cookTime = cookTime;
+        if (description) recipe.description = description;
+        if (ingredients) recipe.ingredients = ingredients;
+        if (directions) recipe.directions = directions;
         if (tags) recipe.tags = tags;
         if (isPinned) recipe.isPinned = isPinned;
 
@@ -237,14 +226,12 @@ app.put("/edit-recipe/recipeId", authenticateToken, async (req, res) => {
     }
 });
 
-//Get All Recipes
+// Get All Recipes
 app.get("/get-all-recipes/", authenticateToken, async (req, res) => {
     const { user } = req.user;
 
     try {
-        const recipes = await Recipe.find({ user:user._id         
-        }).sort({ isPinned: -1     
-        });
+        const recipes = await Recipe.find({ userId: user._id }).sort({ isPinned: -1 });
 
         return res.json({
             error: false,
@@ -266,22 +253,19 @@ app.delete("/delete-recipe/:recipeId", authenticateToken, async (req, res) => {
     const { user } = req.user;
 
     try {
-        const recipe = await Recipe.findOne({ _id: recipeId, userId: user._id
-        });
+        const recipe = await Recipe.findOne({ _id: recipeId, userId: user._id });
 
         if (!recipe) {
-            return res.status(404).json({ error: true, message: "Recipe not found"
-            });
+            return res.status(404).json({ error: true, message: "Recipe not found" });
         }
 
-        await Recipe.deleteOne({ _id: recipeId, userId: user._id
-        });
+        await Recipe.deleteOne({ _id: recipeId, userId: user._id });
 
         return res.json({
             error: false,
             message: "Recipe deleted successfully"
         });
-    } catch (error) {
+        } catch (error) {
         return res.status(500).json ({
             error: true,
             message: "Internal server error"
@@ -294,12 +278,6 @@ app.put("/update-recipe-pinned/:recipeId", authenticateToken, async (req, res) =
     const recipeId = req.params.recipeId;
     const { isPinned } = req.body;
     const { user } = req.user;
-
-    if (!title && !content && !tags) {
-        return res
-        .status(400)
-        .json({ error: true, message: "No changes provided" });
-    }
 
     try {
         const recipe = await Recipe.findOne({ _id: recipeId, userId: user._id });
@@ -321,6 +299,45 @@ app.put("/update-recipe-pinned/:recipeId", authenticateToken, async (req, res) =
         return res.status(500).json({
             error: true,
             message: "Internal server error"
+        });
+    }
+});
+
+// Search Recipes
+app.get("/search-recipes/", authenticateToken, async (req, res) => {
+    const { user } = req.user;
+    const { query } = req.query;
+
+    if (!query) {
+        return res
+            .status(400)
+            .json({ error: true, message: "Search query is required" });
+    }
+
+    try {
+        const matchingRecipes = await Recipe.find({
+            userId: user._id,
+            $or: [
+                { title: { $regex: new RegExp(query, "i") } }, // Case-insensitive match
+                { servings: { $regex: new RegExp(query, "i") } }, // Case-insensitive match
+                { cuisineType: { $regex: new RegExp(query, "i") } }, // Case-insensitive match
+                { cookTime: { $regex: new RegExp(query, "i") } }, // Case-insensitive match
+                { description: { $regex: new RegExp(query, "i") } }, // Case-insensitive match
+                { ingredients: { $regex: new RegExp(query, "i") } }, // Case-insensitive match
+                { directions: { $regex: new RegExp(query, "i") } } // Case-insensitive match
+            ]
+        });
+
+        return res.json({
+            error: false,
+            recipes: matchingRecipes,
+            message: "Recipes matching the search query retrieved successfully"
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            error: true,
+            message: "Internal Server Error"
         });
     }
 });
